@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "x-manager",
+      "runtimeExecutable": "/Users/nakayuu/Library/Python/3.9/bin/uvicorn",
+      "runtimeArgs": ["main:app", "--port", "8001"],
+      "port": 8001
+    }
+  ]
+}
