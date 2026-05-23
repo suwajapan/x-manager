@@ -1,5 +1,6 @@
 import os
 from typing import Optional, List
+from datetime import datetime, timedelta, timezone
 import requests
 from requests_oauthlib import OAuth1
 
@@ -8,10 +9,13 @@ API_KEY = os.environ.get("X_API_KEY", "")
 API_SECRET = os.environ.get("X_API_SECRET", "")
 
 GENRE_KEYWORDS = {
-    "food": "(ご飯 OR グルメ OR 飯テロ OR レシピ OR カフェ OR ランチ OR 晩ごはん) lang:ja",
-    "beauty": "(美容 OR スキンケア OR メイク OR コスメ OR ネイル OR ヘアケア) lang:ja",
-    "fashion": "(コーデ OR ファッション OR OOTD OR 服 OR プチプラ OR トレンドコーデ) lang:ja",
+    "food": "(ご飯 OR グルメ OR 飯テロ OR レシピ OR カフェ OR ランチ OR 晩ごはん OR おうちごはん OR 食べ物) lang:ja",
+    "beauty": "(美容 OR スキンケア OR メイク OR コスメ OR ネイル OR ヘアケア OR 美白 OR 保湿 OR プチプラコスメ) lang:ja",
+    "fashion": "(コーデ OR ファッション OR OOTD OR 服 OR プチプラ OR トレンドコーデ OR 着回し OR ユニクロコーデ) lang:ja",
 }
+
+MIN_FAVES = 1000  # この閾値以上のいいねがある投稿を対象にする
+SEARCH_DAYS = 7   # 過去何日分を対象にするか
 
 
 def bearer_auth(r):
@@ -23,21 +27,24 @@ def make_oauth1(access_token: str, access_token_secret: str) -> OAuth1:
     return OAuth1(API_KEY, API_SECRET, access_token, access_token_secret)
 
 
-def search_trending(genre: str, max_results: int = 20) -> List[dict]:
+def search_trending(genre: str, max_results: int = 100) -> List[dict]:
     query = GENRE_KEYWORDS.get(genre, "")
     if not query:
         return []
+
+    start_time = (datetime.now(timezone.utc) - timedelta(days=SEARCH_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     res = requests.get(
         "https://api.twitter.com/2/tweets/search/recent",
         auth=bearer_auth,
         params={
-            "query": f"{query} -is:retweet has:images",
+            "query": f"{query} -is:retweet min_faves:{MIN_FAVES}",
             "max_results": max_results,
+            "start_time": start_time,
             "tweet.fields": "created_at,public_metrics,author_id,text",
             "expansions": "author_id",
             "user.fields": "username,name,profile_image_url",
-            "sort_order": "relevancy",
+            "sort_order": "recency",
         },
     )
     if res.status_code != 200:
