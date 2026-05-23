@@ -7,3 +7,4 @@ psycopg2-binary
 apscheduler
 anthropic
 pydantic
+python-multipart
