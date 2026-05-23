@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import TrendPost, Genre
@@ -43,7 +43,10 @@ def get_trends(
 
 @router.post("/refresh")
 def refresh_trends(genre: Genre, db: Session = Depends(get_db)):
-    tweets = search_trending(genre.value, max_results=20)
+    try:
+        tweets = search_trending(genre.value)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
     added = 0
     for t in tweets:
         existing = db.query(TrendPost).filter(TrendPost.tweet_id == t["tweet_id"]).first()

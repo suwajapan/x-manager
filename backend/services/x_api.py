@@ -38,7 +38,7 @@ def search_trending(genre: str, max_results: int = 100) -> List[dict]:
         "https://api.twitter.com/2/tweets/search/recent",
         auth=bearer_auth,
         params={
-            "query": f"{query} -is:retweet min_faves:{MIN_FAVES}",
+            "query": f"{query} -is:retweet",
             "max_results": max_results,
             "start_time": start_time,
             "tweet.fields": "created_at,public_metrics,author_id,text",
@@ -48,7 +48,7 @@ def search_trending(genre: str, max_results: int = 100) -> List[dict]:
         },
     )
     if res.status_code != 200:
-        return []
+        raise ValueError(f"X API error {res.status_code}: {res.text}")
 
     data = res.json()
     tweets = data.get("data", [])
@@ -70,6 +70,8 @@ def search_trending(genre: str, max_results: int = 100) -> List[dict]:
             "posted_at": t.get("created_at"),
         })
 
+    # ローカルでいいね閾値フィルター → スコア降順で返す
+    result = [r for r in result if r["likes"] >= MIN_FAVES]
     result.sort(key=lambda x: x["likes"] + x["retweets"] * 2, reverse=True)
     return result
 
