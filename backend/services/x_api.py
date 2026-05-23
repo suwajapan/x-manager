@@ -76,6 +76,34 @@ def search_trending(genre: str, max_results: int = 100) -> List[dict]:
     return result
 
 
+def get_influencer_posts(user_id: str, max_results: int = 20) -> List[dict]:
+    res = requests.get(
+        f"https://api.twitter.com/2/users/{user_id}/tweets",
+        auth=bearer_auth,
+        params={
+            "max_results": max_results,
+            "tweet.fields": "created_at,public_metrics,text",
+            "exclude": "retweets,replies",
+        },
+    )
+    if res.status_code != 200:
+        raise ValueError(f"X API error {res.status_code}: {res.text}")
+    tweets = res.json().get("data", [])
+    result = []
+    for t in tweets:
+        m = t.get("public_metrics", {})
+        result.append({
+            "tweet_id": t["id"],
+            "text": t["text"],
+            "likes": m.get("like_count", 0),
+            "retweets": m.get("retweet_count", 0),
+            "replies": m.get("reply_count", 0),
+            "posted_at": t.get("created_at"),
+        })
+    result.sort(key=lambda x: x["likes"] + x["retweets"] * 2, reverse=True)
+    return result
+
+
 def get_user_info(username: str) -> Optional[dict]:
     res = requests.get(
         f"https://api.twitter.com/2/users/by/username/{username}",

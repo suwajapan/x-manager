@@ -34,7 +34,7 @@ $$('.nav-item').forEach(el => el.addEventListener('click', e => {
 function render(page) {
   const main = $('#main');
   main.innerHTML = '<div class="spinner">読み込み中...</div>';
-  const pages = { dashboard: renderDashboard, trends: renderTrends, posts: renderPosts, accounts: renderAccounts };
+  const pages = { dashboard: renderDashboard, trends: renderTrends, posts: renderPosts, influencers: renderInfluencers, accounts: renderAccounts };
   (pages[page] || renderDashboard)(main);
 }
 
@@ -340,6 +340,114 @@ async function submitPost() {
     });
     document.querySelector('.modal-overlay')?.remove();
     navigate('posts');
+  } catch(e) { alert(e.message); }
+}
+
+// ---- Influencers ----
+async function renderInfluencers(main) {
+  const influencers = await api('/api/influencers');
+  main.innerHTML = `
+    <div class="top-bar">
+      <h1 class="page-title">インフルエンサー</h1>
+      <button class="btn btn-primary" onclick="openAddInfluencer()">+ 追加</button>
+    </div>
+    <div class="grid-2" id="influencerGrid">
+      ${influencers.length ? influencers.map(inf => renderInfluencerCard(inf)).join('') : '<p class="text-muted">未登録</p>'}
+    </div>
+    <div id="influencerModal"></div>`;
+}
+
+function renderInfluencerCard(inf) {
+  return `
+    <div class="card" id="inf-${inf.id}">
+      <div class="account-card" style="border:none;padding:0;margin-bottom:12px">
+        ${inf.profile_image_url ? `<img src="${inf.profile_image_url.replace('_normal','_bigger')}" />` : '<div style="width:44px;height:44px;border-radius:50%;background:#333"></div>'}
+        <div class="info">
+          <div class="name">${inf.display_name || inf.username} ${inf.genre ? `<span class="badge badge-${inf.genre}">${GENRE_LABEL[inf.genre]}</span>` : ''}</div>
+          <div class="handle">@${inf.username}</div>
+          <div class="text-muted" style="font-size:0.8rem">フォロワー ${fmt(inf.followers)} · 取得済み ${inf.post_count}件 · 最高いいね ${fmt(inf.top_likes)}</div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-secondary btn-sm" onclick="refreshInfluencer(${inf.id})">更新</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInfluencer(${inf.id})">削除</button>
+        </div>
+      </div>
+      <div id="posts-${inf.id}">
+        <button class="btn btn-secondary btn-sm" style="width:100%" onclick="loadInfluencerPosts(${inf.id})">ポストを見る</button>
+      </div>
+    </div>`;
+}
+
+async function loadInfluencerPosts(id) {
+  const container = $(`#posts-${id}`);
+  container.innerHTML = '<div class="spinner">読み込み中...</div>';
+  try {
+    const posts = await api(`/api/influencers/${id}/posts`);
+    container.innerHTML = posts.length
+      ? posts.map(p => `
+        <div class="trend-card" style="cursor:default;margin-bottom:8px" data-text="${encodeURIComponent(p.text)}">
+          <div class="text">${p.text}</div>
+          <div class="metrics">
+            <span>いいね <b>${fmt(p.likes)}</b></span>
+            <span>RT <b>${fmt(p.retweets)}</b></span>
+            <span>リプライ <b>${fmt(p.replies)}</b></span>
+            ${p.posted_at ? `<span>${new Date(p.posted_at).toLocaleDateString('ja-JP')}</span>` : ''}
+          </div>
+        </div>`).join('')
+      : '<p class="text-muted">投稿なし</p>';
+  } catch(e) {
+    container.innerHTML = `<p class="text-muted">${e.message}</p>`;
+  }
+}
+
+async function refreshInfluencer(id) {
+  try {
+    const res = await api(`/api/influencers/${id}/refresh`, { method: 'POST' });
+    alert(`更新完了: ${res.added}件追加`);
+    await loadInfluencerPosts(id);
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteInfluencer(id) {
+  if (!confirm('削除しますか？')) return;
+  await api(`/api/influencers/${id}`, { method: 'DELETE' });
+  navigate('influencers');
+}
+
+function openAddInfluencer() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal">
+      <div class="modal-title">インフルエンサー追加</div>
+      <div class="form-group">
+        <label>ユーザー名（@ なし）</label>
+        <input class="form-control" id="infUsername" placeholder="例: yamada_taro" />
+      </div>
+      <div class="form-group">
+        <label>ジャンル（任意）</label>
+        <select class="form-control" id="infGenre">
+          <option value="">指定なし</option>
+          ${GENRE_ALL.map(g => `<option value="${g}">${GENRE_LABEL[g]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">キャンセル</button>
+        <button class="btn btn-primary" onclick="submitInfluencer()">追加</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function submitInfluencer() {
+  const username = $('#infUsername').value.trim().replace(/^@/, '');
+  const genre = $('#infGenre').value || null;
+  if (!username) { alert('ユーザー名を入力してください'); return; }
+  try {
+    await api('/api/influencers', { method: 'POST', body: { username, genre } });
+    document.querySelector('.modal-overlay')?.remove();
+    navigate('influencers');
   } catch(e) { alert(e.message); }
 }
 

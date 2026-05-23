@@ -71,6 +71,37 @@ class TrendPost(Base):
     fetched_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Influencer(Base):
+    __tablename__ = "influencers"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    display_name = Column(String)
+    profile_image_url = Column(String)
+    genre = Column(Enum(Genre))
+    followers = Column(Integer, default=0)
+    user_id = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    posts = relationship("InfluencerPost", back_populates="influencer", cascade="all, delete-orphan")
+
+
+class InfluencerPost(Base):
+    __tablename__ = "influencer_posts"
+
+    id = Column(Integer, primary_key=True)
+    influencer_id = Column(Integer, ForeignKey("influencers.id"), nullable=False)
+    tweet_id = Column(String, unique=True)
+    text = Column(Text)
+    likes = Column(Integer, default=0)
+    retweets = Column(Integer, default=0)
+    replies = Column(Integer, default=0)
+    posted_at = Column(DateTime)
+    fetched_at = Column(DateTime, default=datetime.utcnow)
+
+    influencer = relationship("Influencer", back_populates="posts")
+
+
 class Analytics(Base):
     __tablename__ = "analytics"
 
