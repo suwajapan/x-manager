@@ -3,6 +3,7 @@ uvicorn[standard]
 requests
 requests-oauthlib
 sqlalchemy
+psycopg2-binary
 apscheduler
 anthropic
 pydantic
