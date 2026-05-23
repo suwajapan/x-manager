@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..database import get_db
@@ -120,6 +120,49 @@ def refresh_influencer(influencer_id: int, db: Session = Depends(get_db)):
             added += 1
     db.commit()
     return {"added": added, "total": len(posts)}
+
+
+@router.get("/database")
+def get_database(
+    genre: Optional[Genre] = None,
+    influencer_id: Optional[int] = None,
+    sort: str = Query("likes", regex="^(likes|retweets|score|recent)$"),
+    limit: int = Query(50, le=100),
+    db: Session = Depends(get_db),
+):
+    q = db.query(InfluencerPost).join(Influencer)
+    if genre:
+        q = q.filter(Influencer.genre == genre)
+    if influencer_id:
+        q = q.filter(InfluencerPost.influencer_id == influencer_id)
+
+    if sort == "likes":
+        q = q.order_by(InfluencerPost.likes.desc())
+    elif sort == "retweets":
+        q = q.order_by(InfluencerPost.retweets.desc())
+    elif sort == "score":
+        q = q.order_by((InfluencerPost.likes + InfluencerPost.retweets * 2).desc())
+    elif sort == "recent":
+        q = q.order_by(InfluencerPost.posted_at.desc())
+
+    posts = q.limit(limit).all()
+    return [
+        {
+            "id": p.id,
+            "tweet_id": p.tweet_id,
+            "text": p.text,
+            "likes": p.likes,
+            "retweets": p.retweets,
+            "replies": p.replies,
+            "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+            "influencer_id": p.influencer_id,
+            "influencer_username": p.influencer.username,
+            "influencer_name": p.influencer.display_name,
+            "influencer_image": p.influencer.profile_image_url,
+            "genre": p.influencer.genre,
+        }
+        for p in posts
+    ]
 
 
 @router.get("/{influencer_id}/posts")

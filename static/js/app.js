@@ -34,7 +34,7 @@ $$('.nav-item').forEach(el => el.addEventListener('click', e => {
 function render(page) {
   const main = $('#main');
   main.innerHTML = '<div class="spinner">読み込み中...</div>';
-  const pages = { dashboard: renderDashboard, trends: renderTrends, posts: renderPosts, influencers: renderInfluencers, accounts: renderAccounts };
+  const pages = { dashboard: renderDashboard, trends: renderTrends, posts: renderPosts, influencers: renderInfluencers, database: renderDatabase, accounts: renderAccounts };
   (pages[page] || renderDashboard)(main);
 }
 
@@ -341,6 +341,154 @@ async function submitPost() {
     document.querySelector('.modal-overlay')?.remove();
     navigate('posts');
   } catch(e) { alert(e.message); }
+}
+
+// ---- Database ----
+let dbGenre = '';
+let dbInfluencerId = '';
+let dbSort = 'score';
+let dbInfluencers = [];
+
+async function renderDatabase(main) {
+  dbInfluencers = await api('/api/influencers');
+
+  main.innerHTML = `
+    <div class="top-bar">
+      <h1 class="page-title">データベース</h1>
+      <div class="flex gap-2">
+        <select class="form-control" id="dbInfluencerFilter" style="width:180px">
+          <option value="">全インフルエンサー</option>
+          ${dbInfluencers.map(inf => `<option value="${inf.id}">@${inf.username}</option>`).join('')}
+        </select>
+        <select class="form-control" id="dbSortFilter" style="width:140px">
+          <option value="score">スコア順</option>
+          <option value="likes">いいね順</option>
+          <option value="retweets">RT順</option>
+          <option value="recent">新しい順</option>
+        </select>
+      </div>
+    </div>
+    <div class="genre-tabs" style="margin-bottom:20px">
+      <button class="genre-tab active" data-genre="">すべて</button>
+      ${GENRE_ALL.map(g => `<button class="genre-tab" data-genre="${g}">${GENRE_LABEL[g]}</button>`).join('')}
+    </div>
+    <div id="dbList"><div class="spinner">読み込み中...</div></div>`;
+
+  $$('.genre-tab').forEach(tab => tab.addEventListener('click', () => {
+    $$('.genre-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    dbGenre = tab.dataset.genre;
+    loadDatabase();
+  }));
+
+  $('#dbInfluencerFilter').addEventListener('change', e => { dbInfluencerId = e.target.value; loadDatabase(); });
+  $('#dbSortFilter').addEventListener('change', e => { dbSort = e.target.value; loadDatabase(); });
+
+  loadDatabase();
+}
+
+async function loadDatabase() {
+  const list = $('#dbList');
+  if (!list) return;
+  list.innerHTML = '<div class="spinner">読み込み中...</div>';
+
+  const params = new URLSearchParams({ sort: dbSort, limit: 50 });
+  if (dbGenre) params.set('genre', dbGenre);
+  if (dbInfluencerId) params.set('influencer_id', dbInfluencerId);
+
+  try {
+    const posts = await api(`/api/influencers/database?${params}`);
+    if (!posts.length) {
+      list.innerHTML = '<p class="text-muted">データなし。インフルエンサーを登録して投稿を取得してください。</p>';
+      return;
+    }
+    list.innerHTML = posts.map(p => `
+      <div class="trend-card" data-text="${encodeURIComponent(p.text)}" onclick="toggleDbInspiration(this)">
+        <div class="author">
+          ${p.influencer_image ? `<img src="${p.influencer_image}" />` : ''}
+          <div>
+            <div class="name">${p.influencer_name || p.influencer_username} <span class="badge badge-${p.genre||''}">${GENRE_LABEL[p.genre]||''}</span></div>
+            <div class="handle">@${p.influencer_username} · ${p.posted_at ? new Date(p.posted_at).toLocaleDateString('ja-JP') : ''}</div>
+          </div>
+        </div>
+        <div class="text">${p.text}</div>
+        <div class="metrics">
+          <span>いいね <b>${fmt(p.likes)}</b></span>
+          <span>RT <b>${fmt(p.retweets)}</b></span>
+          <span>リプライ <b>${fmt(p.replies)}</b></span>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<p class="text-muted">${e.message}</p>`;
+  }
+}
+
+let dbSelectedTexts = [];
+
+function toggleDbInspiration(card) {
+  const text = decodeURIComponent(card.dataset.text);
+  const idx = dbSelectedTexts.indexOf(text);
+  if (idx >= 0) {
+    dbSelectedTexts.splice(idx, 1);
+    card.classList.remove('selected');
+  } else if (dbSelectedTexts.length < 3) {
+    dbSelectedTexts.push(text);
+    card.classList.add('selected');
+  }
+  updateDbGenerateBar();
+}
+
+function updateDbGenerateBar() {
+  let bar = $('#dbGenerateBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'dbGenerateBar';
+    bar.style.cssText = 'position:fixed;bottom:0;left:220px;right:0;background:var(--surface);border-top:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:12px;z-index:50';
+    document.body.appendChild(bar);
+  }
+  if (!dbSelectedTexts.length) { bar.remove(); return; }
+
+  const genre = dbGenre || (dbInfluencers.find(i => i.id == dbInfluencerId)?.genre) || 'food';
+  bar.innerHTML = `
+    <span class="text-muted" style="font-size:0.85rem">${dbSelectedTexts.length}件選択中</span>
+    <input class="form-control" id="dbInstruction" placeholder="追加指示（任意）" style="flex:1;max-width:300px" />
+    <button class="btn btn-primary" onclick="generateFromDb('${genre}')">AIで生成</button>
+    <button class="btn btn-secondary" onclick="dbSelectedTexts=[];$$('.trend-card').forEach(c=>c.classList.remove('selected'));updateDbGenerateBar()">クリア</button>`;
+}
+
+async function generateFromDb(genre) {
+  const btn = $('#dbGenerateBar .btn-primary');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  try {
+    const data = await api('/api/posts/generate', {
+      method: 'POST',
+      body: { genre, inspiration_texts: dbSelectedTexts, instruction: $('#dbInstruction')?.value || '' },
+    });
+    // 生成結果をモーダルで表示
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="modal-title">AI 生成結果</div>
+        <textarea class="form-control" id="dbGeneratedText" style="min-height:100px">${data.content}</textarea>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">閉じる</button>
+          <button class="btn btn-primary" onclick="openPostModalWithText($('#dbGeneratedText').value)">投稿・予約する</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  } catch(e) { alert(e.message); }
+  btn.disabled = false;
+  btn.textContent = 'AIで生成';
+}
+
+async function openPostModalWithText(text) {
+  document.querySelector('.modal-overlay')?.remove();
+  const accounts = await api('/api/accounts');
+  window._postAccounts = accounts;
+  openPostModal(text);
 }
 
 // ---- Influencers ----

@@ -3,8 +3,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
-from ..models import ScheduledPost, PostStatus, Account, TrendPost, Analytics, Genre
-from .x_api import search_trending, get_user_info, post_tweet
+from ..models import ScheduledPost, PostStatus, Account, TrendPost, Analytics, Genre, Influencer, InfluencerPost
+from .x_api import search_trending, get_user_info, post_tweet, get_influencer_posts
 
 scheduler = BackgroundScheduler()
 
@@ -78,8 +78,30 @@ def record_analytics():
     db.close()
 
 
+def update_influencer_posts():
+    db: Session = SessionLocal()
+    influencers = db.query(Influencer).filter(Influencer.user_id.isnot(None)).all()
+    for inf in influencers:
+        try:
+            posts = get_influencer_posts(inf.user_id, max_results=20)
+            for p in posts:
+                existing = db.query(InfluencerPost).filter(InfluencerPost.tweet_id == p["tweet_id"]).first()
+                if existing:
+                    existing.likes = p["likes"]
+                    existing.retweets = p["retweets"]
+                    existing.replies = p["replies"]
+                else:
+                    post = InfluencerPost(influencer_id=inf.id, **p)
+                    db.add(post)
+            db.commit()
+        except Exception:
+            db.rollback()
+    db.close()
+
+
 def start():
     scheduler.add_job(publish_scheduled_posts, IntervalTrigger(minutes=1), id="publish")
     scheduler.add_job(fetch_trends, IntervalTrigger(hours=1), id="trends")
     scheduler.add_job(record_analytics, IntervalTrigger(hours=6), id="analytics")
+    scheduler.add_job(update_influencer_posts, IntervalTrigger(hours=6), id="influencer_posts")
     scheduler.start()
