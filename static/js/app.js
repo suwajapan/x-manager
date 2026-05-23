@@ -34,33 +34,35 @@ $$('.nav-item').forEach(el => el.addEventListener('click', e => {
 function render(page) {
   const main = $('#main');
   main.innerHTML = '<div class="spinner">読み込み中...</div>';
-  const pages = { dashboard: renderDashboard, trends: renderTrends, posts: renderPosts, influencers: renderInfluencers, database: renderDatabase, accounts: renderAccounts };
+  const pages = { dashboard: renderDashboard, posts: renderPosts, influencers: renderInfluencers, database: renderDatabase, accounts: renderAccounts };
   (pages[page] || renderDashboard)(main);
 }
 
 // ---- Dashboard ----
 async function renderDashboard(main) {
-  const [accounts, trends, posts] = await Promise.all([
+  const [accounts, posts, influencers, topPosts] = await Promise.all([
     api('/api/accounts'),
-    api('/api/trends?limit=5'),
     api('/api/posts?status=scheduled'),
+    api('/api/influencers'),
+    api('/api/influencers/database?sort=score&limit=5'),
   ]);
 
   const totalFollowers = accounts.reduce((s,a) => s+a.followers, 0);
+  const totalDbPosts = influencers.reduce((s,i) => s+i.post_count, 0);
 
   main.innerHTML = `
     <div class="top-bar">
       <h1 class="page-title">ダッシュボード</h1>
     </div>
     <div class="grid-4" style="margin-bottom:24px">
-      <div class="stat-card"><div class="val">${accounts.length}</div><div class="label">登録アカウント</div></div>
+      <div class="stat-card"><div class="val">${accounts.length}</div><div class="label">運用アカウント</div></div>
       <div class="stat-card"><div class="val">${fmt(totalFollowers)}</div><div class="label">総フォロワー</div></div>
       <div class="stat-card"><div class="val">${posts.length}</div><div class="label">予約投稿</div></div>
-      <div class="stat-card"><div class="val">${trends.length}</div><div class="label">トレンド取得済み</div></div>
+      <div class="stat-card"><div class="val">${totalDbPosts}</div><div class="label">DB投稿数</div></div>
     </div>
     <div class="grid-2">
       <div>
-        <div class="card-title">登録アカウント</div>
+        <div class="card-title">運用アカウント</div>
         ${accounts.slice(0,5).map(a => `
           <div class="account-card">
             ${a.profile_image_url ? `<img src="${a.profile_image_url.replace('_normal','_bigger')}" />` : '<div style="width:44px;height:44px;border-radius:50%;background:#333"></div>'}
@@ -72,124 +74,28 @@ async function renderDashboard(main) {
           </div>`).join('') || '<p class="text-muted">アカウント未登録</p>'}
       </div>
       <div>
-        <div class="card-title">バズトレンド TOP5</div>
-        ${trends.map((t,i) => `
+        <div class="card-title">DB バズ投稿 TOP5</div>
+        ${topPosts.map((p,i) => `
           <div class="trend-card" style="cursor:default">
             <div class="author">
               <span class="rank-badge ${i<3?'top':''}">${i+1}</span>
-              <span class="badge badge-${t.genre}">${GENRE_LABEL[t.genre]}</span>
-              <span style="font-size:0.85rem;font-weight:600">@${t.author_username}</span>
+              ${p.influencer_image ? `<img src="${p.influencer_image}" />` : ''}
+              <span style="font-size:0.85rem;font-weight:600">@${p.influencer_username}</span>
+              <span class="badge badge-${p.genre}">${GENRE_LABEL[p.genre]||''}</span>
             </div>
-            <div class="text">${t.text.slice(0,80)}${t.text.length>80?'...':''}</div>
+            <div class="text">${p.text.slice(0,80)}${p.text.length>80?'...':''}</div>
             <div class="metrics">
-              <span>いいね <b>${fmt(t.likes)}</b></span>
-              <span>RT <b>${fmt(t.retweets)}</b></span>
+              <span>いいね <b>${fmt(p.likes)}</b></span>
+              <span>RT <b>${fmt(p.retweets)}</b></span>
             </div>
-          </div>`).join('') || '<p class="text-muted">トレンドデータなし（トレンドページで取得してください）</p>'}
+          </div>`).join('') || '<p class="text-muted">インフルエンサーを登録するとここに表示されます</p>'}
       </div>
     </div>`;
 }
 
-// ---- Trends ----
-let selectedGenre = 'food';
-let selectedInspirations = [];
-
-async function renderTrends(main) {
-  selectedInspirations = [];
-  main.innerHTML = `
-    <div class="top-bar">
-      <h1 class="page-title">トレンド</h1>
-      <button class="btn btn-primary" id="refreshBtn">更新</button>
-    </div>
-    <div class="genre-tabs">
-      ${GENRE_ALL.map(g => `<button class="genre-tab ${g===selectedGenre?'active':''}" data-genre="${g}">${GENRE_LABEL[g]}</button>`).join('')}
-    </div>
-    <div class="grid-2">
-      <div id="trendList"><div class="spinner">読み込み中...</div></div>
-      <div id="generatePanel">
-        <div class="card-title">AI ポスト生成</div>
-        <p class="text-muted" style="font-size:0.85rem;margin-bottom:12px">左のトレンドを選択してインスピレーションにします</p>
-        <div class="selected-inspirations" id="inspirationChips"></div>
-        <div class="form-group">
-          <label>追加指示（任意）</label>
-          <textarea class="form-control" id="genInstruction" placeholder="例：フォロワー参加型にして、質問で終わらせて"></textarea>
-        </div>
-        <button class="btn btn-primary" id="generateBtn" style="width:100%">AIで生成</button>
-        <div id="generateResult" style="margin-top:16px"></div>
-      </div>
-    </div>`;
-
-  $$('.genre-tab').forEach(tab => tab.addEventListener('click', () => {
-    selectedGenre = tab.dataset.genre;
-    $$('.genre-tab').forEach(t => t.classList.toggle('active', t.dataset.genre === selectedGenre));
-    loadTrends();
-  }));
-
-  $('#refreshBtn').addEventListener('click', async () => {
-    $('#refreshBtn').disabled = true;
-    try {
-      await api(`/api/trends/refresh?genre=${selectedGenre}`, { method:'POST' });
-      loadTrends();
-    } catch(e) { alert(e.message); }
-    finally { $('#refreshBtn').disabled = false; }
-  });
-
-  $('#generateBtn').addEventListener('click', generatePost);
-
-  loadTrends();
-}
-
-async function loadTrends() {
-  const list = $('#trendList');
-  if (!list) return;
-  list.innerHTML = '<div class="spinner">読み込み中...</div>';
-  try {
-    const trends = await api(`/api/trends?genre=${selectedGenre}&limit=20`);
-    list.innerHTML = trends.length
-      ? trends.map((t,i) => `
-        <div class="trend-card" data-id="${t.id}" data-text="${encodeURIComponent(t.text)}">
-          <div class="author">
-            <span class="rank-badge ${i<3?'top':''}">${i+1}</span>
-            ${t.author_image ? `<img src="${t.author_image}" />` : ''}
-            <div><div class="name">${t.author_name}</div><div class="handle">@${t.author_username}</div></div>
-          </div>
-          <div class="text">${t.text}</div>
-          <div class="metrics">
-            <span>いいね <b>${fmt(t.likes)}</b></span>
-            <span>RT <b>${fmt(t.retweets)}</b></span>
-            <span>リプライ <b>${fmt(t.replies)}</b></span>
-          </div>
-        </div>`).join('')
-      : '<p class="text-muted">データなし。「更新」ボタンで取得してください。</p>';
-
-    $$('.trend-card').forEach(card => card.addEventListener('click', () => toggleInspiration(card)));
-  } catch(e) {
-    list.innerHTML = `<p class="text-muted">${e.message}</p>`;
-  }
-}
-
-function toggleInspiration(card) {
-  const text = decodeURIComponent(card.dataset.text);
-  const idx = selectedInspirations.indexOf(text);
-  if (idx >= 0) {
-    selectedInspirations.splice(idx, 1);
-    card.classList.remove('selected');
-  } else if (selectedInspirations.length < 3) {
-    selectedInspirations.push(text);
-    card.classList.add('selected');
-  }
-  renderChips();
-}
-
-function renderChips() {
-  const chips = $('#inspirationChips');
-  if (!chips) return;
-  chips.innerHTML = selectedInspirations.map(t =>
-    `<span class="inspiration-chip">${t.slice(0,30)}...</span>`).join('');
-}
+// ---- (Trends removed) ----
 
 async function generatePost() {
-  if (!selectedInspirations.length) { alert('トレンドを1〜3件選択してください'); return; }
   const btn = $('#generateBtn');
   const result = $('#generateResult');
   btn.disabled = true;
@@ -198,9 +104,9 @@ async function generatePost() {
     const data = await api('/api/posts/generate', {
       method: 'POST',
       body: {
-        genre: selectedGenre,
-        inspiration_texts: selectedInspirations,
-        instruction: $('#genInstruction').value,
+        genre: 'food',
+        inspiration_texts: [],
+        instruction: '',
       },
     });
     result.innerHTML = `
@@ -208,7 +114,6 @@ async function generatePost() {
         <div class="card-title">生成結果</div>
         <textarea class="form-control" id="generatedText" style="min-height:80px">${data.content}</textarea>
         <div class="flex gap-2 mt-2">
-          <button class="btn btn-secondary btn-sm" onclick="generatePost()">再生成</button>
           <button class="btn btn-primary btn-sm" onclick="openPostModal()">投稿・予約する</button>
         </div>
       </div>`;
