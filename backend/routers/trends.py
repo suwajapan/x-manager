@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/trends", tags=["trends"])
 @router.get("")
 def get_trends(
     genre: Optional[Genre] = None,
-    limit: int = Query(20, le=50),
+    limit: int = Query(50, le=100),
     db: Session = Depends(get_db),
 ):
     q = db.query(TrendPost)
@@ -47,16 +47,13 @@ def refresh_trends(genre: Genre, db: Session = Depends(get_db)):
         tweets = search_trending(genre.value)
     except ValueError as e:
         raise HTTPException(status_code=502, detail=str(e))
-    added = 0
-    for t in tweets:
-        existing = db.query(TrendPost).filter(TrendPost.tweet_id == t["tweet_id"]).first()
-        if existing:
-            existing.likes = t["likes"]
-            existing.retweets = t["retweets"]
-            existing.replies = t["replies"]
-        else:
-            trend = TrendPost(genre=genre, **t)
-            db.add(trend)
-            added += 1
+
+    # ジャンルの古いデータを全削除して入れ直す
+    db.query(TrendPost).filter(TrendPost.genre == genre).delete()
     db.commit()
-    return {"added": added, "total": len(tweets)}
+
+    for t in tweets:
+        trend = TrendPost(genre=genre, **t)
+        db.add(trend)
+    db.commit()
+    return {"added": len(tweets), "total": len(tweets)}
