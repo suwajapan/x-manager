@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from ..database import SessionLocal
 from ..models import ScheduledPost, PostStatus, Account, TrendPost, Analytics, Genre
-from .x_api import search_trending, get_user_info, post_tweet, refresh_access_token
+from .x_api import search_trending, get_user_info, post_tweet
 
 scheduler = BackgroundScheduler()
 
@@ -22,21 +22,13 @@ def publish_scheduled_posts():
     )
     for post in posts:
         account: Account = post.account
-        if not account.access_token:
+        if not account.access_token or not account.access_token_secret:
             post.status = PostStatus.failed
-            post.error_message = "access_token が設定されていません"
+            post.error_message = "access_token / access_token_secret が設定されていません"
             db.commit()
             continue
 
-        token = account.access_token
-        if account.refresh_token:
-            refreshed = refresh_access_token(account.refresh_token)
-            if refreshed:
-                token = refreshed["access_token"]
-                account.access_token = token
-                account.refresh_token = refreshed.get("refresh_token", account.refresh_token)
-
-        result = post_tweet(token, post.content)
+        result = post_tweet(account.access_token, account.access_token_secret, post.content)
         if "data" in result:
             post.status = PostStatus.published
             post.published_at = now

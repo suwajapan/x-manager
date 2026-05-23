@@ -1,10 +1,11 @@
 import os
-from typing import Optional
+from typing import Optional, List
 import requests
+from requests_oauthlib import OAuth1
 
 BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
-CLIENT_ID = os.environ.get("X_CLIENT_ID", "")
-CLIENT_SECRET = os.environ.get("X_CLIENT_SECRET", "")
+API_KEY = os.environ.get("X_API_KEY", "")
+API_SECRET = os.environ.get("X_API_SECRET", "")
 
 GENRE_KEYWORDS = {
     "food": "(ご飯 OR グルメ OR 飯テロ OR レシピ OR カフェ OR ランチ OR 晩ごはん) lang:ja",
@@ -18,7 +19,11 @@ def bearer_auth(r):
     return r
 
 
-def search_trending(genre: str, max_results: int = 20) -> list[dict]:
+def make_oauth1(access_token: str, access_token_secret: str) -> OAuth1:
+    return OAuth1(API_KEY, API_SECRET, access_token, access_token_secret)
+
+
+def search_trending(genre: str, max_results: int = 20) -> List[dict]:
     query = GENRE_KEYWORDS.get(genre, "")
     if not query:
         return []
@@ -83,27 +88,11 @@ def get_user_info(username: str) -> Optional[dict]:
     }
 
 
-def post_tweet(access_token: str, content: str) -> dict:
+def post_tweet(access_token: str, access_token_secret: str, content: str) -> dict:
+    oauth = make_oauth1(access_token, access_token_secret)
     res = requests.post(
         "https://api.twitter.com/2/tweets",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
+        auth=oauth,
         json={"text": content},
     )
-    return res.json()
-
-
-def refresh_access_token(refresh_token: str) -> Optional[dict]:
-    res = requests.post(
-        "https://api.twitter.com/2/oauth2/token",
-        auth=(CLIENT_ID, CLIENT_SECRET),
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-        },
-    )
-    if res.status_code != 200:
-        return None
     return res.json()

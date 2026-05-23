@@ -386,11 +386,11 @@ function openAddAccount() {
       </div>
       <div class="form-group">
         <label>Access Token（投稿する場合）</label>
-        <input class="form-control" id="newAccessToken" placeholder="OAuth 2.0 Access Token" />
+        <input class="form-control" id="newAccessToken" placeholder="OAuth 1.0a Access Token" />
       </div>
       <div class="form-group">
-        <label>Refresh Token（投稿する場合）</label>
-        <input class="form-control" id="newRefreshToken" placeholder="OAuth 2.0 Refresh Token" />
+        <label>Access Token Secret（投稿する場合）</label>
+        <input class="form-control" id="newAccessTokenSecret" placeholder="OAuth 1.0a Access Token Secret" />
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">キャンセル</button>
@@ -405,10 +405,10 @@ async function submitAccount() {
   const username = $('#newUsername').value.trim().replace(/^@/,'');
   const genre = $('#newGenre').value;
   const access_token = $('#newAccessToken').value.trim() || null;
-  const refresh_token = $('#newRefreshToken').value.trim() || null;
+  const access_token_secret = $('#newAccessTokenSecret').value.trim() || null;
   if (!username) { alert('ユーザー名を入力してください'); return; }
   try {
-    await api('/api/accounts', { method:'POST', body:{ username, genre, access_token, refresh_token } });
+    await api('/api/accounts', { method:'POST', body:{ username, genre, access_token, access_token_secret } });
     document.querySelector('.modal-overlay')?.remove();
     navigate('accounts');
   } catch(e) { alert(e.message); }

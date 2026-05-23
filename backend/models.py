@@ -27,7 +27,7 @@ class Account(Base):
     profile_image_url = Column(String)
     genre = Column(Enum(Genre), nullable=False)
     access_token = Column(Text)
-    refresh_token = Column(Text)
+    access_token_secret = Column(Text)
     followers = Column(Integer, default=0)
     following = Column(Integer, default=0)
     tweet_count = Column(Integer, default=0)

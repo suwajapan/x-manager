@@ -13,7 +13,7 @@ class AccountCreate(BaseModel):
     username: str
     genre: Genre
     access_token: Optional[str] = None
-    refresh_token: Optional[str] = None
+    access_token_secret: Optional[str] = None
 
 
 @router.get("")
@@ -29,7 +29,7 @@ def list_accounts(db: Session = Depends(get_db)):
             "followers": a.followers,
             "following": a.following,
             "tweet_count": a.tweet_count,
-            "has_token": bool(a.access_token),
+            "has_token": bool(a.access_token and a.access_token_secret),
         }
         for a in accounts
     ]
@@ -49,7 +49,7 @@ def create_account(body: AccountCreate, db: Session = Depends(get_db)):
         username=body.username,
         genre=body.genre,
         access_token=body.access_token,
-        refresh_token=body.refresh_token,
+        access_token_secret=body.access_token_secret,
         **info,
     )
     db.add(account)
