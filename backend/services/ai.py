@@ -1,6 +1,7 @@
 import os
 import base64
 import anthropic
+from .usage_tracker import track_anthropic
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
@@ -44,6 +45,7 @@ def generate_post(genre: str, inspiration_tweets: list, instruction: str = "") -
         max_tokens=300,
         messages=[{"role": "user", "content": prompt}],
     )
+    track_anthropic("generate_post", message.usage.input_tokens, message.usage.output_tokens)
     return message.content[0].text.strip()
 
 
@@ -98,4 +100,5 @@ def generate_caption(
         max_tokens=300,
         messages=[{"role": "user", "content": content}],
     )
+    track_anthropic("generate_caption", message.usage.input_tokens, message.usage.output_tokens)
     return message.content[0].text.strip()

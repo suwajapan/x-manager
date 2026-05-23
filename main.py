@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 
 from backend.database import engine, Base
-from backend.routers import accounts, trends, posts, influencers
+from backend.routers import accounts, trends, posts, influencers, costs
 from backend.services import scheduler as sched
 
 
@@ -22,6 +22,7 @@ app.include_router(accounts.router)
 app.include_router(trends.router)
 app.include_router(posts.router)
 app.include_router(influencers.router)
+app.include_router(costs.router)
 
 
 @app.get("/", response_class=HTMLResponse)

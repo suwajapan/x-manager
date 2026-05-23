@@ -102,6 +102,18 @@ class InfluencerPost(Base):
     influencer = relationship("Influencer", back_populates="posts")
 
 
+class APIUsage(Base):
+    __tablename__ = "api_usage"
+
+    id = Column(Integer, primary_key=True)
+    service = Column(String, nullable=False)    # "anthropic" | "x_read" | "x_write"
+    operation = Column(String, nullable=False)  # "generate_post" | "generate_caption" | "fetch_trends" etc.
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
+    cost_usd = Column(Integer, default=0)       # マイクロドル (1 = $0.000001) で整数保存
+    called_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Analytics(Base):
     __tablename__ = "analytics"
 

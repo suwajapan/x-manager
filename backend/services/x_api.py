@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta, timezone
 import requests
 from requests_oauthlib import OAuth1
+from .usage_tracker import track_x
 
 BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
 API_KEY = os.environ.get("X_API_KEY", "")
@@ -71,6 +72,7 @@ def search_trending(genre: str, max_results: int = 100) -> List[dict]:
         })
 
     # プラン制限で min_faves 演算子は使えないためローカルでスコア降順ソート
+    track_x("search_trending")
     result.sort(key=lambda x: x["likes"] + x["retweets"] * 2, reverse=True)
     return result
 
@@ -99,6 +101,7 @@ def get_influencer_posts(user_id: str, max_results: int = 20) -> List[dict]:
             "replies": m.get("reply_count", 0),
             "posted_at": t.get("created_at"),
         })
+    track_x("get_influencer_posts")
     result.sort(key=lambda x: x["likes"] + x["retweets"] * 2, reverse=True)
     return result
 
@@ -131,4 +134,5 @@ def post_tweet(access_token: str, access_token_secret: str, content: str) -> dic
         auth=oauth,
         json={"text": content},
     )
+    track_x("post_tweet", service="x_write")
     return res.json()

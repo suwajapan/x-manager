@@ -34,7 +34,7 @@ $$('.nav-item').forEach(el => el.addEventListener('click', e => {
 function render(page) {
   const main = $('#main');
   main.innerHTML = '<div class="spinner">読み込み中...</div>';
-  const pages = { dashboard: renderDashboard, posts: renderPosts, influencers: renderInfluencers, database: renderDatabase, accounts: renderAccounts };
+  const pages = { dashboard: renderDashboard, posts: renderPosts, influencers: renderInfluencers, database: renderDatabase, costs: renderCosts, accounts: renderAccounts };
   (pages[page] || renderDashboard)(main);
 }
 
@@ -358,6 +358,100 @@ async function submitPost() {
     document.querySelector('.modal-overlay')?.remove();
     navigate('posts');
   } catch(e) { alert(e.message); }
+}
+
+// ---- Costs ----
+async function renderCosts(main) {
+  main.innerHTML = '<div class="spinner">読み込み中...</div>';
+  try {
+    const d = await api('/api/costs');
+    const opLabel = { generate_post: 'ポスト生成', generate_caption: 'キャプション生成' };
+
+    const maxDaily = Math.max(...d.daily.map(r => r.cost_usd), 0.0001);
+    const dailyBars = d.daily.map(r => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="width:70px;font-size:0.75rem;color:var(--muted)">${r.date.slice(5)}</span>
+        <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
+          <div style="height:100%;background:var(--blue);border-radius:4px;width:${(r.cost_usd/maxDaily*100).toFixed(1)}%"></div>
+        </div>
+        <span style="width:60px;font-size:0.75rem;color:var(--muted);text-align:right">$${r.cost_usd.toFixed(4)}</span>
+      </div>`).join('');
+
+    const xReadPct = Math.min(d.x_api.read.pct, 100);
+    const xWritePct = Math.min(d.x_api.write.pct, 100);
+    const xReadColor = xReadPct > 80 ? 'var(--red)' : xReadPct > 50 ? 'var(--yellow)' : 'var(--green)';
+    const xWriteColor = xWritePct > 80 ? 'var(--red)' : xWritePct > 50 ? 'var(--yellow)' : 'var(--green)';
+
+    main.innerHTML = `
+      <div class="top-bar">
+        <h1 class="page-title">API コスト <span style="font-size:0.85rem;color:var(--muted);font-weight:400">${d.month}</span></h1>
+        <button class="btn btn-secondary btn-sm" onclick="navigate('costs')">更新</button>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="stat-card">
+          <div class="label">Anthropic 今月合計</div>
+          <div class="val" style="color:var(--blue)">$${d.anthropic.total_cost_usd.toFixed(4)}</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">≈ ¥${Math.ceil(d.anthropic.total_cost_usd * 155)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">X API プラン</div>
+          <div class="val" style="font-size:1.1rem">${d.x_api.plan}</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">固定費 ≈ ¥15,500/月</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="card">
+            <div class="card-title">Anthropic オペレーション別</div>
+            ${d.anthropic.breakdown.length ? d.anthropic.breakdown.map(b => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+                <div>
+                  <div style="font-weight:600;font-size:0.9rem">${opLabel[b.operation] || b.operation}</div>
+                  <div style="font-size:0.78rem;color:var(--muted)">${b.calls}回 · in:${b.input_tokens.toLocaleString()} / out:${b.output_tokens.toLocaleString()} tokens</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-weight:700;color:var(--blue)">$${b.cost_usd.toFixed(4)}</div>
+                  <div style="font-size:0.75rem;color:var(--muted)">≈ ¥${Math.ceil(b.cost_usd * 155)}</div>
+                </div>
+              </div>`).join('')
+            : '<p class="text-muted">まだ利用なし</p>'}
+          </div>
+
+          <div class="card">
+            <div class="card-title">X API 使用状況（今月）</div>
+            <div style="margin-bottom:14px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:0.85rem">読み取り</span>
+                <span style="font-size:0.85rem;color:var(--muted)">${d.x_api.read.used.toLocaleString()} / ${d.x_api.read.limit.toLocaleString()}</span>
+              </div>
+              <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden">
+                <div style="height:100%;border-radius:6px;background:${xReadColor};width:${xReadPct}%;transition:width 0.4s"></div>
+              </div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:3px">${d.x_api.read.pct}% 消費</div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:0.85rem">書き込み（投稿）</span>
+                <span style="font-size:0.85rem;color:var(--muted)">${d.x_api.write.used.toLocaleString()} / ${d.x_api.write.limit.toLocaleString()}</span>
+              </div>
+              <div style="background:var(--surface2);border-radius:6px;height:10px;overflow:hidden">
+                <div style="height:100%;border-radius:6px;background:${xWriteColor};width:${xWritePct}%;transition:width 0.4s"></div>
+              </div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:3px">${d.x_api.write.pct}% 消費</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">日別 Anthropic コスト</div>
+          ${d.daily.length ? dailyBars : '<p class="text-muted">データなし</p>'}
+        </div>
+      </div>`;
+  } catch(e) {
+    main.innerHTML = `<p class="text-muted">${e.message}</p>`;
+  }
 }
 
 // ---- Database ----
