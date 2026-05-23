@@ -133,7 +133,10 @@ async function renderPosts(main) {
   main.innerHTML = `
     <div class="top-bar">
       <h1 class="page-title">投稿管理</h1>
-      <button class="btn btn-primary" onclick="openPostModal()">+ 新規投稿</button>
+      <div class="flex gap-2">
+        <button class="btn btn-secondary" onclick="openCaptionModal()">画像からキャプション生成</button>
+        <button class="btn btn-primary" onclick="openPostModal()">+ 新規投稿</button>
+      </div>
     </div>
     <div class="genre-tabs">
       <button class="genre-tab active" data-status="all">すべて</button>
@@ -179,6 +182,115 @@ function renderPostList(posts) {
 
 function statusLabel(s) {
   return { draft:'下書き', scheduled:'予約', published:'公開済み', failed:'失敗' }[s] || s;
+}
+
+function openCaptionModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal" style="width:600px">
+      <div class="modal-title">画像からキャプション生成</div>
+      <div class="form-group">
+        <label>ジャンル</label>
+        <select class="form-control" id="capGenre">
+          ${GENRE_ALL.map(g => `<option value="${g}">${GENRE_LABEL[g]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>画像（任意）</label>
+        <input type="file" class="form-control" id="capImage" accept="image/*" />
+        <div id="capPreview" style="margin-top:8px"></div>
+      </div>
+      <div class="form-group">
+        <label>画像の詳細・メモ</label>
+        <textarea class="form-control" id="capDescription" placeholder="例：渋谷の人気カフェで食べたフルーツパフェ。見た目が華やかで映える。価格は1800円。" style="min-height:80px"></textarea>
+      </div>
+      <div class="form-group">
+        <label>テイスト</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="tasteGrid">
+          ${[
+            ['buzz',    'バズ狙い', 'いいね・保存されやすい、インパクト重視'],
+            ['empathy', '共感型',   'あるある・日常感、フォロワーが反応しやすい'],
+            ['elegant', '上品・洗練', 'ハイブランド感、シンプルで洗練された文体'],
+            ['casual',  '親しみやすい', 'カジュアル・フレンドリー、会話口調'],
+            ['info',    '情報提供型', '詳細・スペック・使い方を伝える'],
+          ].map(([val, label, desc]) => `
+            <label style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start">
+              <input type="radio" name="capTaste" value="${val}" ${val==='buzz'?'checked':''} style="margin-top:3px;flex-shrink:0" />
+              <div>
+                <div style="font-weight:600;font-size:0.9rem">${label}</div>
+                <div style="font-size:0.78rem;color:var(--muted)">${desc}</div>
+              </div>
+            </label>`).join('')}
+        </div>
+      </div>
+      <div id="capResult"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">閉じる</button>
+        <button class="btn btn-primary" id="capGenBtn" onclick="submitCaption()">生成</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  $('#capImage').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      $('#capPreview').innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:contain" />`;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function submitCaption() {
+  const btn = $('#capGenBtn');
+  const result = $('#capResult');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  result.innerHTML = '<div class="spinner">DBを参照してキャプションを生成中...</div>';
+
+  try {
+    const form = new FormData();
+    form.append('genre', $('#capGenre').value);
+    form.append('taste', document.querySelector('input[name="capTaste"]:checked').value);
+    form.append('description', $('#capDescription').value);
+    const imageFile = $('#capImage').files[0];
+    if (imageFile) form.append('image', imageFile);
+
+    const res = await fetch('/api/posts/generate-caption', { method: 'POST', body: form });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    const data = await res.json();
+
+    result.innerHTML = `
+      <div class="generate-panel" style="margin-top:0">
+        <div class="card-title">生成結果</div>
+        <textarea class="form-control" id="capGenerated" style="min-height:90px">${data.content}</textarea>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:4px" id="capCharCount">${data.content.length} / 140文字</div>
+        <div class="flex gap-2 mt-2">
+          <button class="btn btn-secondary btn-sm" onclick="submitCaption()">再生成</button>
+          <button class="btn btn-primary btn-sm" onclick="useCaption()">投稿・予約する</button>
+        </div>
+      </div>`;
+
+    const ta = $('#capGenerated');
+    ta.addEventListener('input', () => {
+      $('#capCharCount').textContent = `${ta.value.length} / 140文字`;
+    });
+  } catch(e) {
+    result.innerHTML = `<p class="text-muted">${e.message}</p>`;
+  }
+  btn.disabled = false;
+  btn.textContent = '再生成';
+}
+
+async function useCaption() {
+  const text = $('#capGenerated').value;
+  document.querySelector('.modal-overlay')?.remove();
+  const accounts = await api('/api/accounts');
+  window._postAccounts = accounts;
+  openPostModal(text);
 }
 
 async function deletePost(id) {

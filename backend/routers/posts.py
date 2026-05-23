@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 from ..database import get_db
-from ..models import ScheduledPost, PostStatus, Account
-from ..services.ai import generate_post
+from ..models import ScheduledPost, PostStatus, Account, InfluencerPost, Influencer, Genre
+from ..services.ai import generate_post, generate_caption
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -98,3 +98,39 @@ def delete_post(post_id: int, db: Session = Depends(get_db)):
 def generate(body: GenerateRequest):
     text = generate_post(body.genre, body.inspiration_texts, body.instruction)
     return {"content": text}
+
+
+@router.post("/generate-caption")
+async def generate_caption_endpoint(
+    genre: str = Form(...),
+    taste: str = Form(...),
+    description: str = Form(""),
+    image: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+):
+    # DB からそのジャンルのバズ投稿を取得（参考用）
+    db_posts = (
+        db.query(InfluencerPost)
+        .join(Influencer)
+        .filter(Influencer.genre == genre)
+        .order_by((InfluencerPost.likes + InfluencerPost.retweets * 2).desc())
+        .limit(5)
+        .all()
+    )
+    db_examples = [p.text for p in db_posts]
+
+    image_data = None
+    image_media_type = "image/jpeg"
+    if image and image.filename:
+        image_data = await image.read()
+        image_media_type = image.content_type or "image/jpeg"
+
+    caption = generate_caption(
+        genre=genre,
+        taste=taste,
+        description=description,
+        db_examples=db_examples,
+        image_data=image_data,
+        image_media_type=image_media_type,
+    )
+    return {"content": caption}
