@@ -2,8 +2,8 @@
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 const fmt = n => n >= 10000 ? (n/10000).toFixed(1)+'万' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n??0);
-const GENRE_LABEL = { food:'ご飯', beauty:'美容', fashion:'ファッション' };
-const GENRE_ALL = ['food','beauty','fashion'];
+const GENRE_LABEL = { food:'ご飯', beauty:'美容', fashion:'ファッション', lifestyle:'ライフスタイル' };
+const GENRE_ALL = ['food','beauty','fashion','lifestyle'];
 
 async function api(path, opts={}) {
   const res = await fetch(path, {

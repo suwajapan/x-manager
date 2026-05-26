@@ -9,6 +9,7 @@ class Genre(str, enum.Enum):
     food = "food"
     beauty = "beauty"
     fashion = "fashion"
+    lifestyle = "lifestyle"
 
 
 class PostStatus(str, enum.Enum):

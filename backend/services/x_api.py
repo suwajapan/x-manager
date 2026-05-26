@@ -13,6 +13,7 @@ GENRE_KEYWORDS = {
     "food": "(ご飯 OR グルメ OR 飯テロ OR レシピ OR カフェ OR ランチ OR 晩ごはん OR おうちごはん OR 食べ物) lang:ja",
     "beauty": "(美容 OR スキンケア OR メイク OR コスメ OR ネイル OR ヘアケア OR 美白 OR 保湿 OR プチプラコスメ) lang:ja",
     "fashion": "(コーデ OR ファッション OR OOTD OR 服 OR プチプラ OR トレンドコーデ OR 着回し OR ユニクロコーデ) lang:ja",
+    "lifestyle": "(ライフスタイル OR 暮らし OR 丁寧な暮らし OR インテリア OR 朝活 OR ルーティン OR シンプルライフ OR 整理整頓) lang:ja",
 }
 
 MIN_FAVES = 1000  # この閾値以上のいいねがある投稿を対象にする

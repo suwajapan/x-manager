@@ -9,6 +9,7 @@ GENRE_PERSONA = {
     "food": "ご飯・グルメ系のSNS運用者",
     "beauty": "美容・コスメ系のSNS運用者",
     "fashion": "ファッション・コーデ系のSNS運用者",
+    "lifestyle": "ライフスタイル・暮らし系のSNS運用者",
 }
 
 TASTE_LABEL = {

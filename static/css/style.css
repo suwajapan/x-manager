@@ -154,6 +154,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 .badge-food { background: rgba(255, 180, 0, 0.15); color: var(--yellow); }
 .badge-beauty { background: rgba(255, 90, 150, 0.15); color: #ff6eb4; }
 .badge-fashion { background: rgba(150, 100, 255, 0.15); color: #b07fff; }
+.badge-lifestyle { background: rgba(0, 200, 150, 0.15); color: #00c896; }
 .badge-scheduled { background: rgba(29, 155, 240, 0.15); color: var(--blue); }
 .badge-published { background: rgba(0, 186, 124, 0.15); color: var(--green); }
 .badge-draft { background: rgba(136, 136, 136, 0.15); color: var(--muted); }
